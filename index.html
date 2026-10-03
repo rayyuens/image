@@ -1,0 +1,752 @@
+<!DOCTYPE html>
+<html lang="zh-HK" class="h-full bg-slate-900 text-slate-100">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>A4 100% Actual Size Print Studio | 1:1 卡片精準列印佈局工具</title>
+  
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- jsPDF Library for 100% exact vector PDF generation -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <!-- FontAwesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <!-- Google Fonts: Inter & Noto Sans HK -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Noto+Sans+HK:wght@400;500;700&display=swap" rel="stylesheet">
+
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'Noto Sans HK', 'sans-serif'],
+          },
+          colors: {
+            brand: {
+              50: '#f0f9ff',
+              500: '#0284c7',
+              600: '#0369a1',
+              700: '#075985',
+            }
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    /* Custom Scrollbar Styling */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #0f172a;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #334155;
+      border-radius: 3px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #475569;
+    }
+    .preview-shadow {
+      box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.5);
+    }
+  </style>
+</head>
+<body class="h-full flex flex-col font-sans overflow-x-hidden antialiased">
+
+  <header class="bg-slate-800 border-b border-slate-700 px-4 md:px-6 py-3 flex items-center justify-between shrink-0">
+    <div class="flex items-center gap-3">
+      <div class="bg-gradient-to-tr from-sky-500 to-indigo-600 p-2 rounded-lg text-white shadow-md">
+        <i class="fa-solid fa-print text-xl"></i>
+      </div>
+      <div>
+        <h1 class="text-base md:text-lg font-bold text-white leading-tight">1:1 卡片列印佈局 Studio (A4 Print Layout)</h1>
+        <p class="text-xs text-slate-400 hidden sm:block">上傳圖片 &gt; 輸入實體尺寸（如 14x9 cm）&gt; 產生 100% 正確原寸 PDF 列印檔</p>
+      </div>
+    </div>
+    
+    <div class="flex items-center gap-2">
+      <button id="btnExportPDF" class="bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-400 hover:to-blue-500 text-white font-medium px-4 py-2 rounded-lg shadow-lg flex items-center gap-2 text-sm transition-all active:scale-95">
+        <i class="fa-solid fa-file-pdf text-base"></i>
+        <span>下載 100% 原寸 PDF (Download PDF)</span>
+      </button>
+    </div>
+  </header>
+
+  <div class="flex-1 flex overflow-hidden flex-col md:flex-row">
+    
+    <!-- LEFT PANEL: Step-by-step Controls (Scrollable) -->
+    <aside class="w-full md:w-[410px] bg-slate-800/90 border-r border-slate-700 overflow-y-auto p-4 md:p-5 flex flex-col gap-5 shrink-0">
+      
+      <!-- STEP 1: Upload Card Image -->
+      <section class="bg-slate-900/60 p-4 rounded-xl border border-slate-700/80">
+        <h2 class="text-xs font-bold text-slate-300 uppercase tracking-wider mb-3 flex items-center gap-2">
+          <i class="fa-solid fa-cloud-arrow-up text-sky-400 text-sm"></i> 步驟 1：上傳卡片圖片 (Upload Card Image)
+        </h2>
+        
+        <div id="dropZone" class="border-2 border-dashed border-slate-600 hover:border-sky-500 bg-slate-800/50 hover:bg-slate-800 rounded-lg p-4 text-center cursor-pointer transition-all group">
+          <input type="file" id="imageInput" accept="image/*" class="hidden">
+          <div id="uploadPrompt" class="flex flex-col items-center gap-2">
+            <i class="fa-solid fa-image text-3xl text-slate-400 group-hover:text-sky-400 transition-colors"></i>
+            <p class="text-xs font-medium text-slate-200">點擊或拖放圖片到此處 (Click or Drag Image)</p>
+            <p class="text-[11px] text-slate-400">支援 JPG, PNG, WebP, SVG 格式</p>
+          </div>
+          <div id="uploadSuccess" class="hidden flex items-center justify-between gap-3 text-left">
+            <img id="imagePreviewThumb" class="w-12 h-12 object-cover rounded border border-slate-600" src="" alt="縮圖">
+            <div class="flex-1 min-w-0">
+              <p id="imageFileName" class="text-xs font-medium text-slate-200 truncate">card.png</p>
+              <p id="imageDimensionsInfo" class="text-[11px] text-slate-400">0 x 0 px</p>
+            </div>
+            <button id="btnRemoveImage" class="text-slate-400 hover:text-red-400 p-1.5 transition-colors" title="移除圖片">
+              <i class="fa-solid fa-trash-can"></i>
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <!-- STEP 2: Actual Card Dimensions -->
+      <section class="bg-slate-900/60 p-4 rounded-xl border border-slate-700/80">
+        <div class="flex items-center justify-between mb-3">
+          <h2 class="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-2">
+            <i class="fa-solid fa-ruler-combined text-sky-400 text-sm"></i> 步驟 2：設定卡片實體尺寸 (Dimensions)
+          </h2>
+          <!-- Unit Selector -->
+          <div class="flex bg-slate-800 p-0.5 rounded border border-slate-700 text-xs">
+            <button id="unitCm" class="unit-btn active px-2.5 py-0.5 rounded text-white font-medium bg-sky-600">cm</button>
+            <button id="unitMm" class="unit-btn px-2.5 py-0.5 rounded text-slate-400 font-medium hover:text-white">mm</button>
+            <button id="unitIn" class="unit-btn px-2.5 py-0.5 rounded text-slate-400 font-medium hover:text-white">in</button>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-medium text-slate-400 mb-1">卡片闊度 Width (<span class="unitLabel">cm</span>)</label>
+            <input type="number" id="cardWidth" value="9" step="0.1" min="0.1" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white font-mono text-sm focus:outline-none focus:border-sky-500">
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-slate-400 mb-1">卡片高度 Height (<span class="unitLabel">cm</span>)</label>
+            <input type="number" id="cardHeight" value="14" step="0.1" min="0.1" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white font-mono text-sm focus:outline-none focus:border-sky-500">
+          </div>
+        </div>
+
+        <!-- Presets -->
+        <div class="mt-3 flex flex-wrap gap-1.5">
+          <span class="text-[11px] text-slate-500 w-full mb-0.5">常用快捷尺寸 (Quick Presets)：</span>
+          <button class="preset-btn text-[11px] bg-slate-800 hover:bg-slate-700 text-slate-300 px-2 py-1 rounded border border-slate-700" data-w="9" data-h="14" data-unit="cm">14 x 9 cm (4角最佳化)</button>
+          <button class="preset-btn text-[11px] bg-slate-800 hover:bg-slate-700 text-slate-300 px-2 py-1 rounded border border-slate-700" data-w="5.5" data-h="9" data-unit="cm">標準名片 (9x5.5cm)</button>
+          <button class="preset-btn text-[11px] bg-slate-800 hover:bg-slate-700 text-slate-300 px-2 py-1 rounded border border-slate-700" data-w="6.3" data-h="8.8" data-unit="cm">遊戲卡牌 (8.8x6.3cm)</button>
+          <button class="preset-btn text-[11px] bg-slate-800 hover:bg-slate-700 text-slate-300 px-2 py-1 rounded border border-slate-700" data-w="10" data-h="15" data-unit="cm">4x6 相片 (15x10cm)</button>
+        </div>
+      </section>
+
+      <!-- STEP 3: Layout Strategy -->
+      <section class="bg-slate-900/60 p-4 rounded-xl border border-slate-700/80">
+        <h2 class="text-xs font-bold text-slate-300 uppercase tracking-wider mb-3 flex items-center gap-2">
+          <i class="fa-solid fa-border-all text-sky-400 text-sm"></i> 步驟 3：頁面排版佈局 (Layout Strategy)
+        </h2>
+
+        <div class="space-y-3.5">
+          <div>
+            <label class="block text-xs font-medium text-slate-400 mb-1.5">擺放模式 (Placement Mode)</label>
+            <select id="layoutStrategy" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-sky-500">
+              <option value="fourCorners">四角落/四張均勻擺放 (4 Corners / 2x2 Grid)</option>
+              <option value="autoGrid">自動充滿全頁 (Auto Maximum Grid)</option>
+              <option value="customGrid">自訂欄數與列數 (Custom Columns x Rows)</option>
+              <option value="singleCenter">單張置中 (Single Card Centered)</option>
+            </select>
+          </div>
+
+          <!-- Custom Grid Input fields -->
+          <div id="customGridRowCol" class="hidden grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs font-medium text-slate-400 mb-1">欄數 (Columns)</label>
+              <input type="number" id="gridCols" value="2" min="1" max="10" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-white text-sm">
+            </div>
+            <div>
+              <label class="block text-xs font-medium text-slate-400 mb-1">列數 (Rows)</label>
+              <input type="number" id="gridRows" value="2" min="1" max="10" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-white text-sm">
+            </div>
+          </div>
+
+          <!-- Margins & Gutters -->
+          <div class="grid grid-cols-2 gap-3 pt-2 border-t border-slate-800">
+            <div>
+              <label class="block text-xs font-medium text-slate-400 mb-1">頁面邊界 Margin (<span class="unitLabel">cm</span>)</label>
+              <input type="number" id="pageMargin" value="1.0" step="0.1" min="0" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-white font-mono text-sm">
+            </div>
+            <div>
+              <label class="block text-xs font-medium text-slate-400 mb-1">卡片間距 Gap (<span class="unitLabel">cm</span>)</label>
+              <input type="number" id="cardSpacing" value="0.5" step="0.1" min="0" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-white font-mono text-sm">
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- STEP 4: Paper & Cut Marks -->
+      <section class="bg-slate-900/60 p-4 rounded-xl border border-slate-700/80">
+        <h2 class="text-xs font-bold text-slate-300 uppercase tracking-wider mb-3 flex items-center gap-2">
+          <i class="fa-solid fa-scissors text-sky-400 text-sm"></i> 步驟 4：紙張方向與裁切線 (Paper & Crop Marks)
+        </h2>
+
+        <div class="space-y-3">
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs font-medium text-slate-400 mb-1">紙張規格</label>
+              <select id="paperSize" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-white text-sm">
+                <option value="a4">A4 (210 x 297 mm)</option>
+                <option value="letter">US Letter (8.5 x 11 in)</option>
+                <option value="a3">A3 (297 x 420 mm)</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-xs font-medium text-slate-400 mb-1">方向 Orientation</label>
+              <select id="paperOrientation" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-white text-sm">
+                <option value="portrait">直向 Portrait</option>
+                <option value="landscape">橫向 Landscape</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="pt-2 space-y-2 border-t border-slate-800">
+            <label class="flex items-center gap-2 cursor-pointer">
+              <input type="checkbox" id="showCropMarks" checked class="w-4 h-4 rounded bg-slate-800 border-slate-700 text-sky-500 focus:ring-sky-500">
+              <span class="text-xs text-slate-200 font-medium">顯示四角裁切線 (Corner Crop/Cut Marks)</span>
+            </label>
+            <label class="flex items-center gap-2 cursor-pointer">
+              <input type="checkbox" id="showOutline" class="w-4 h-4 rounded bg-slate-800 border-slate-700 text-sky-500 focus:ring-sky-500">
+              <span class="text-xs text-slate-300">繪製輕微卡片外框實線 (Light Outer Border Line)</span>
+            </label>
+          </div>
+        </div>
+      </section>
+
+    </aside>
+
+    <!-- RIGHT PANEL: Live Interactive Preview Canvas -->
+    <main class="flex-1 bg-slate-950 flex flex-col items-center justify-center p-4 md:p-6 relative overflow-auto">
+      
+      <!-- Top Info Bar -->
+      <div class="absolute top-4 left-4 right-4 md:left-6 md:right-6 flex items-center justify-between pointer-events-none z-10">
+        <div class="bg-slate-900/90 backdrop-blur border border-slate-700/80 px-3 py-1.5 rounded-lg text-xs text-slate-300 shadow-md pointer-events-auto flex items-center gap-3">
+          <span><i class="fa-solid fa-copy text-sky-400 mr-1.5"></i> 卡片數量：<strong id="totalCardsCount" class="text-white">4</strong> 張</span>
+          <span class="text-slate-600">|</span>
+          <span><i class="fa-solid fa-expand text-sky-400 mr-1.5"></i> 底紙尺寸：<strong id="paperDimText" class="text-white">210 x 297 mm</strong></span>
+        </div>
+
+        <div class="bg-slate-900/90 backdrop-blur border border-slate-700/80 px-3 py-1.5 rounded-lg text-xs text-slate-300 shadow-md pointer-events-auto flex items-center gap-2">
+          <i class="fa-solid fa-magnifying-glass text-slate-400"></i>
+          <span>預覽縮放：<strong id="zoomLevelText" class="text-white">100%</strong></span>
+        </div>
+      </div>
+
+      <!-- Real-Time Interactive Canvas Container -->
+      <div class="w-full h-full flex items-center justify-center min-h-[450px]">
+        <div id="canvasContainer" class="relative bg-white preview-shadow transition-all duration-200">
+          <canvas id="previewCanvas" class="block w-full h-full"></canvas>
+        </div>
+      </div>
+
+      <!-- Bottom Printing Instructions Hint -->
+      <div class="absolute bottom-4 bg-slate-900/90 border border-slate-800 px-4 py-2 rounded-full text-xs text-slate-300 shadow-xl flex items-center gap-2 max-w-[90%] text-center">
+        <i class="fa-solid fa-circle-info text-sky-400 text-sm shrink-0"></i>
+        <span>提示：匯出的 PDF 為 100% 絕對物理尺寸。列印時請務必選擇「<strong>實際尺寸 / Actual Size (100%)</strong>」，勿勾選「適合頁面 (Fit)」。</span>
+      </div>
+
+    </main>
+  </div>
+
+  <script>
+    // State Object
+    const state = {
+      image: null,
+      imageWidthPx: 0,
+      imageHeightPx: 0,
+      fileName: '',
+      unit: 'cm', // cm, mm, in
+      cardWidth: 9.0,
+      cardHeight: 14.0,
+      layoutStrategy: 'fourCorners', // fourCorners, autoGrid, customGrid, singleCenter
+      gridCols: 2,
+      gridRows: 2,
+      pageMargin: 1.0,
+      cardSpacing: 0.5,
+      paperSize: 'a4',
+      paperOrientation: 'portrait',
+      showCropMarks: true,
+      showOutline: false,
+    };
+
+    // Paper Specs (in mm)
+    const PAPER_SIZES_MM = {
+      a4: { w: 210, h: 297 },
+      letter: { w: 215.9, h: 279.4 },
+      a3: { w: 297, h: 420 }
+    };
+
+    // DOM Elements
+    const elements = {
+      imageInput: document.getElementById('imageInput'),
+      dropZone: document.getElementById('dropZone'),
+      uploadPrompt: document.getElementById('uploadPrompt'),
+      uploadSuccess: document.getElementById('uploadSuccess'),
+      imagePreviewThumb: document.getElementById('imagePreviewThumb'),
+      imageFileName: document.getElementById('imageFileName'),
+      imageDimensionsInfo: document.getElementById('imageDimensionsInfo'),
+      btnRemoveImage: document.getElementById('btnRemoveImage'),
+      
+      cardWidth: document.getElementById('cardWidth'),
+      cardHeight: document.getElementById('cardHeight'),
+      layoutStrategy: document.getElementById('layoutStrategy'),
+      customGridRowCol: document.getElementById('customGridRowCol'),
+      gridCols: document.getElementById('gridCols'),
+      gridRows: document.getElementById('gridRows'),
+      pageMargin: document.getElementById('pageMargin'),
+      cardSpacing: document.getElementById('cardSpacing'),
+      paperSize: document.getElementById('paperSize'),
+      paperOrientation: document.getElementById('paperOrientation'),
+      showCropMarks: document.getElementById('showCropMarks'),
+      showOutline: document.getElementById('showOutline'),
+      
+      canvasContainer: document.getElementById('canvasContainer'),
+      previewCanvas: document.getElementById('previewCanvas'),
+      totalCardsCount: document.getElementById('totalCardsCount'),
+      paperDimText: document.getElementById('paperDimText'),
+      zoomLevelText: document.getElementById('zoomLevelText'),
+      btnExportPDF: document.getElementById('btnExportPDF')
+    };
+
+    function convertToMm(val, unit) {
+      if (unit === 'cm') return val * 10;
+      if (unit === 'in') return val * 25.4;
+      return val; // mm
+    }
+
+    function convertFromMm(valMm, targetUnit) {
+      if (targetUnit === 'cm') return valMm / 10;
+      if (targetUnit === 'in') return valMm / 25.4;
+      return valMm;
+    }
+
+    function getPaperDimensionsMm() {
+      const p = PAPER_SIZES_MM[state.paperSize] || PAPER_SIZES_MM.a4;
+      return state.paperOrientation === 'portrait' 
+        ? { w: p.w, h: p.h } 
+        : { w: p.h, h: p.w };
+    }
+
+    function setupFileUpload() {
+      elements.dropZone.addEventListener('click', (e) => {
+        if (e.target.closest('#btnRemoveImage')) return;
+        elements.imageInput.click();
+      });
+
+      elements.imageInput.addEventListener('change', handleFileSelect);
+
+      ['dragenter', 'dragover'].forEach(eventName => {
+        elements.dropZone.addEventListener(eventName, (e) => {
+          e.preventDefault();
+          elements.dropZone.classList.add('border-sky-500', 'bg-slate-800');
+        });
+      });
+
+      ['dragleave', 'drop'].forEach(eventName => {
+        elements.dropZone.addEventListener(eventName, (e) => {
+          e.preventDefault();
+          elements.dropZone.classList.remove('border-sky-500', 'bg-slate-800');
+        });
+      });
+
+      elements.dropZone.addEventListener('drop', (e) => {
+        const dt = e.dataTransfer;
+        const files = dt.files;
+        if (files.length > 0) {
+          elements.imageInput.files = files;
+          handleFileSelect();
+        }
+      });
+
+      elements.btnRemoveImage.addEventListener('click', (e) => {
+        e.stopPropagation();
+        state.image = null;
+        state.fileName = '';
+        elements.imageInput.value = '';
+        elements.uploadPrompt.classList.remove('hidden');
+        elements.uploadSuccess.classList.add('hidden');
+        renderPreview();
+      });
+    }
+
+    function handleFileSelect() {
+      const file = elements.imageInput.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        const img = new Image();
+        img.onload = function() {
+          state.image = img;
+          state.imageWidthPx = img.width;
+          state.imageHeightPx = img.height;
+          state.fileName = file.name;
+
+          elements.imagePreviewThumb.src = e.target.result;
+          elements.imageFileName.textContent = file.name;
+          elements.imageDimensionsInfo.textContent = `${img.width} x ${img.height} px`;
+          elements.uploadPrompt.classList.add('hidden');
+          elements.uploadSuccess.classList.remove('hidden');
+
+          renderPreview();
+        };
+        img.src = e.target.result;
+      };
+      reader.readAsDataURL(file);
+    }
+
+    function setupControlListeners() {
+      // Unit Selector Buttons
+      document.querySelectorAll('.unit-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          document.querySelectorAll('.unit-btn').forEach(b => {
+            b.classList.remove('active', 'text-white', 'bg-sky-600');
+            b.classList.add('text-slate-400');
+          });
+          e.target.classList.add('active', 'text-white', 'bg-sky-600');
+          e.target.classList.remove('text-slate-400');
+
+          const oldUnit = state.unit;
+          const newUnit = e.target.id.replace('unit', '').toLowerCase();
+          
+          if (oldUnit !== newUnit) {
+            const convertVal = (val) => {
+              const mm = convertToMm(parseFloat(val) || 0, oldUnit);
+              const result = convertFromMm(mm, newUnit);
+              return Math.round(result * 100) / 100;
+            };
+
+            elements.cardWidth.value = convertVal(elements.cardWidth.value);
+            elements.cardHeight.value = convertVal(elements.cardHeight.value);
+            elements.pageMargin.value = convertVal(elements.pageMargin.value);
+            elements.cardSpacing.value = convertVal(elements.cardSpacing.value);
+
+            state.unit = newUnit;
+            document.querySelectorAll('.unitLabel').forEach(span => span.textContent = newUnit);
+            updateStateFromInputs();
+          }
+        });
+      });
+
+      // Quick Preset Buttons
+      document.querySelectorAll('.preset-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const w = parseFloat(btn.dataset.w);
+          const h = parseFloat(btn.dataset.h);
+
+          document.getElementById('unitCm').click();
+          elements.cardWidth.value = w;
+          elements.cardHeight.value = h;
+          updateStateFromInputs();
+        });
+      });
+
+      // Live Input Event Listeners
+      const inputs = [
+        elements.cardWidth, elements.cardHeight, elements.layoutStrategy,
+        elements.gridCols, elements.gridRows, elements.pageMargin,
+        elements.cardSpacing, elements.paperSize, elements.paperOrientation,
+        elements.showCropMarks, elements.showOutline
+      ];
+
+      inputs.forEach(input => {
+        input.addEventListener('input', updateStateFromInputs);
+        input.addEventListener('change', updateStateFromInputs);
+      });
+
+      window.addEventListener('resize', renderPreview);
+    }
+
+    function updateStateFromInputs() {
+      state.cardWidth = parseFloat(elements.cardWidth.value) || 0.1;
+      state.cardHeight = parseFloat(elements.cardHeight.value) || 0.1;
+      state.layoutStrategy = elements.layoutStrategy.value;
+      state.gridCols = parseInt(elements.gridCols.value) || 1;
+      state.gridRows = parseInt(elements.gridRows.value) || 1;
+      state.pageMargin = parseFloat(elements.pageMargin.value) || 0;
+      state.cardSpacing = parseFloat(elements.cardSpacing.value) || 0;
+      state.paperSize = elements.paperSize.value;
+      state.paperOrientation = elements.paperOrientation.value;
+      state.showCropMarks = elements.showCropMarks.checked;
+      state.showOutline = elements.showOutline.checked;
+
+      if (state.layoutStrategy === 'customGrid') {
+        elements.customGridRowCol.classList.remove('hidden');
+      } else {
+        elements.customGridRowCol.classList.add('hidden');
+      }
+
+      renderPreview();
+    }
+
+    function calculateLayoutPositions() {
+      const paperMm = getPaperDimensionsMm();
+      const cardWMm = convertToMm(state.cardWidth, state.unit);
+      const cardHMm = convertToMm(state.cardHeight, state.unit);
+      const marginMm = convertToMm(state.pageMargin, state.unit);
+      const spacingMm = convertToMm(state.cardSpacing, state.unit);
+
+      let cols = 1;
+      let rows = 1;
+      let positions = [];
+
+      if (state.layoutStrategy === 'fourCorners') {
+        cols = 2;
+        rows = 2;
+        const x1 = marginMm;
+        const x2 = paperMm.w - marginMm - cardWMm;
+        const y1 = marginMm;
+        const y2 = paperMm.h - marginMm - cardHMm;
+
+        positions = [
+          { x: x1, y: y1 }, // Top-Left
+          { x: x2, y: y1 }, // Top-Right
+          { x: x1, y: y2 }, // Bottom-Left
+          { x: x2, y: y2 }  // Bottom-Right
+        ];
+      } else if (state.layoutStrategy === 'singleCenter') {
+        cols = 1;
+        rows = 1;
+        positions = [{
+          x: (paperMm.w - cardWMm) / 2,
+          y: (paperMm.h - cardHMm) / 2
+        }];
+      } else if (state.layoutStrategy === 'autoGrid') {
+        const availW = paperMm.w - (marginMm * 2);
+        const availH = paperMm.h - (marginMm * 2);
+
+        cols = Math.max(1, Math.floor((availW + spacingMm) / (cardWMm + spacingMm)));
+        rows = Math.max(1, Math.floor((availH + spacingMm) / (cardHMm + spacingMm)));
+
+        const totalGridW = (cols * cardWMm) + ((cols - 1) * spacingMm);
+        const totalGridH = (rows * cardHMm) + ((rows - 1) * spacingMm);
+        const startX = (paperMm.w - totalGridW) / 2;
+        const startY = (paperMm.h - totalGridH) / 2;
+
+        for (let r = 0; r < rows; r++) {
+          for (let c = 0; c < cols; c++) {
+            positions.push({
+              x: startX + c * (cardWMm + spacingMm),
+              y: startY + r * (cardHMm + spacingMm)
+            });
+          }
+        }
+      } else if (state.layoutStrategy === 'customGrid') {
+        cols = state.gridCols;
+        rows = state.gridRows;
+
+        const totalGridW = (cols * cardWMm) + ((cols - 1) * spacingMm);
+        const totalGridH = (rows * cardHMm) + ((rows - 1) * spacingMm);
+        const startX = (paperMm.w - totalGridW) / 2;
+        const startY = (paperMm.h - totalGridH) / 2;
+
+        for (let r = 0; r < rows; r++) {
+          for (let c = 0; c < cols; c++) {
+            positions.push({
+              x: startX + c * (cardWMm + spacingMm),
+              y: startY + r * (cardHMm + spacingMm)
+            });
+          }
+        }
+      }
+
+      return { paperMm, cardWMm, cardHMm, positions, cols, rows };
+    }
+
+    function renderPreview() {
+      const layout = calculateLayoutPositions();
+      const paperMm = layout.paperMm;
+      
+      elements.totalCardsCount.textContent = layout.positions.length;
+      elements.paperDimText.textContent = `${paperMm.w} x ${paperMm.h} mm`;
+
+      const mainEl = document.querySelector('main');
+      const maxContainerW = mainEl.clientWidth - 60;
+      const maxContainerH = mainEl.clientHeight - 90;
+
+      const scaleX = maxContainerW / paperMm.w;
+      const scaleY = maxContainerH / paperMm.h;
+      const scale = Math.min(scaleX, scaleY, 3.5);
+
+      const canvasW = paperMm.w * scale;
+      const canvasH = paperMm.h * scale;
+
+      elements.zoomLevelText.textContent = `${Math.round((scale / 2) * 100)}%`;
+
+      const canvas = elements.previewCanvas;
+      const ctx = canvas.getContext('2d');
+      
+      const dpr = window.devicePixelRatio || 1;
+      canvas.width = canvasW * dpr;
+      canvas.height = canvasH * dpr;
+      elements.canvasContainer.style.width = `${canvasW}px`;
+      elements.canvasContainer.style.height = `${canvasH}px`;
+
+      ctx.scale(dpr, dpr);
+
+      // White A4 Sheet background
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, canvasW, canvasH);
+
+      // Printable Margin Guide (Dashed line)
+      const marginPx = convertToMm(state.pageMargin, state.unit) * scale;
+      ctx.strokeStyle = '#e2e8f0';
+      ctx.setLineDash([4, 4]);
+      ctx.lineWidth = 1;
+      ctx.strokeRect(marginPx, marginPx, canvasW - (marginPx * 2), canvasH - (marginPx * 2));
+      ctx.setLineDash([]);
+
+      // Draw Cards
+      const cardWPx = layout.cardWMm * scale;
+      const cardHPx = layout.cardHMm * scale;
+
+      layout.positions.forEach((pos, idx) => {
+        const xPx = pos.x * scale;
+        const yPx = pos.y * scale;
+
+        if (state.image) {
+          ctx.drawImage(state.image, xPx, yPx, cardWPx, cardHPx);
+        } else {
+          ctx.fillStyle = '#f8fafc';
+          ctx.fillRect(xPx, yPx, cardWPx, cardHPx);
+          
+          ctx.strokeStyle = '#cbd5e1';
+          ctx.lineWidth = 1.5;
+          ctx.strokeRect(xPx, yPx, cardWPx, cardHPx);
+
+          ctx.fillStyle = '#94a3b8';
+          ctx.font = `600 ${Math.max(10, 12 * (scale/2))}px Inter, sans-serif`;
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText(`卡片 #${idx + 1}`, xPx + cardWPx / 2, yPx + cardHPx / 2 - 8);
+          
+          ctx.font = `${Math.max(8, 10 * (scale/2))}px Inter, sans-serif`;
+          ctx.fillText(`${state.cardWidth} x ${state.cardHeight} ${state.unit}`, xPx + cardWPx / 2, yPx + cardHPx / 2 + 10);
+        }
+
+        if (state.showOutline) {
+          ctx.strokeStyle = '#64748b';
+          ctx.lineWidth = 0.8;
+          ctx.strokeRect(xPx, yPx, cardWPx, cardHPx);
+        }
+
+        // Draw Corner Crop Marks
+        if (state.showCropMarks) {
+          const markLen = Math.max(8, 12 * (scale / 2));
+          const markOffset = 3;
+
+          ctx.strokeStyle = '#0f172a';
+          ctx.lineWidth = 1;
+
+          // Top-Left
+          drawCropLine(ctx, xPx - markOffset - markLen, yPx, xPx - markOffset, yPx);
+          drawCropLine(ctx, xPx, yPx - markOffset - markLen, xPx, yPx - markOffset);
+
+          // Top-Right
+          drawCropLine(ctx, xPx + cardWPx + markOffset, yPx, xPx + cardWPx + markOffset + markLen, yPx);
+          drawCropLine(ctx, xPx + cardWPx, yPx - markOffset - markLen, xPx + cardWPx, yPx - markOffset);
+
+          // Bottom-Left
+          drawCropLine(ctx, xPx - markOffset - markLen, yPx + cardHPx, xPx - markOffset, yPx + cardHPx);
+          drawCropLine(ctx, xPx, yPx + cardHPx + markOffset, xPx, yPx + cardHPx + markOffset + markLen);
+
+          // Bottom-Right
+          drawCropLine(ctx, xPx + cardWPx + markOffset, yPx + cardHPx, xPx + cardWPx + markOffset + markLen, yPx + cardHPx);
+          drawCropLine(ctx, xPx + cardWPx, yPx + cardHPx + markOffset, xPx + cardWPx, yPx + cardHPx + markOffset + markLen);
+        }
+      });
+    }
+
+    function drawCropLine(ctx, x1, y1, x2, y2) {
+      ctx.beginPath();
+      ctx.moveTo(x1, y1);
+      ctx.lineTo(x2, y2);
+      ctx.stroke();
+    }
+
+    function exportToPDF() {
+      const { jsPDF } = window.jspdf;
+      const layout = calculateLayoutPositions();
+      const paperMm = layout.paperMm;
+
+      const pdf = new jsPDF({
+        orientation: state.paperOrientation,
+        unit: 'mm',
+        format: state.paperSize
+      });
+
+      const cardWMm = layout.cardWMm;
+      const cardHMm = layout.cardHMm;
+
+      layout.positions.forEach((pos) => {
+        if (state.image) {
+          pdf.addImage(state.image, 'JPEG', pos.x, pos.y, cardWMm, cardHMm);
+        } else {
+          pdf.setDrawColor(180, 180, 180);
+          pdf.setFillColor(245, 245, 245);
+          pdf.rect(pos.x, pos.y, cardWMm, cardHMm, 'FD');
+
+          pdf.setTextColor(120, 120, 120);
+          pdf.setFontSize(10);
+          pdf.text(`Card (${state.cardWidth} x ${state.cardHeight} ${state.unit})`, pos.x + cardWMm / 2, pos.y + cardHMm / 2, { align: 'center' });
+        }
+
+        if (state.showOutline) {
+          pdf.setDrawColor(100, 100, 100);
+          pdf.setLineWidth(0.1);
+          pdf.rect(pos.x, pos.y, cardWMm, cardHMm, 'S');
+        }
+
+        if (state.showCropMarks) {
+          pdf.setDrawColor(0, 0, 0);
+          pdf.setLineWidth(0.2);
+
+          const markLen = 4;
+          const offset = 1.5;
+          const x = pos.x;
+          const y = pos.y;
+
+          // Top-Left
+          pdf.line(x - offset - markLen, y, x - offset, y);
+          pdf.line(x, y - offset - markLen, x, y - offset);
+
+          // Top-Right
+          pdf.line(x + cardWMm + offset, y, x + cardWMm + offset + markLen, y);
+          pdf.line(x + cardWMm, y - offset - markLen, x + cardWMm, y - offset);
+
+          // Bottom-Left
+          pdf.line(x - offset - markLen, y + cardHMm, x - offset, y + cardHMm);
+          pdf.line(x, y + cardHMm + offset, x, y + cardHMm + offset + markLen);
+
+          // Bottom-Right
+          pdf.line(x + cardWMm + offset, y + cardHMm, x + cardWMm + offset + markLen, y + cardHMm);
+          pdf.line(x + cardWMm, y + cardHMm + offset, x + cardWMm, y + cardHMm + offset + markLen);
+        }
+      });
+
+      const cleanName = state.fileName ? state.fileName.replace(/\.[^/.]+$/, "") : "cards";
+      pdf.save(`${cleanName}_${state.cardWidth}x${state.cardHeight}${state.unit}_100pct_actual_size.pdf`);
+    }
+
+    // App Initialization
+    window.addEventListener('DOMContentLoaded', () => {
+      setupFileUpload();
+      setupControlListeners();
+      updateStateFromInputs();
+
+      elements.btnExportPDF.addEventListener('click', exportToPDF);
+    });
+  </script>
+</body>
+</html>
