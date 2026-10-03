@@ -736,7 +736,7 @@
       });
 
       const cleanName = state.fileName ? state.fileName.replace(/\.[^/.]+$/, "") : "cards";
-      pdf.save(`${cleanName}_${state.cardWidth}x${state.cardHeight}${state.unit}_100pct_actual_size.pdf`);
+      pdf.save(`A4_Print_${state.cardWidth}x${state.cardHeight}${state.unit}_100pct_actual_size.pdf`);
     }
 
     // App Initialization
