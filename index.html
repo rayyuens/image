@@ -106,6 +106,16 @@
             </button>
           </div>
         </div>
+        <p id="uploadError" class="hidden mt-1 text-xs text-red-400" role="alert"></p>
+
+        <label id="differentDesignsControl" class="hidden mt-3 flex items-start gap-2 cursor-pointer">
+          <input type="checkbox" id="differentDesigns" class="mt-0.5 w-4 h-4 rounded bg-slate-800 border-slate-700 text-sky-500 focus:ring-sky-500">
+          <span id="differentDesignsLabel" class="text-xs text-slate-200">使用不同設計 (Upload a different design for each card)</span>
+        </label>
+
+        <div id="additionalDesignUploads" class="hidden mt-3 space-y-3">
+          <div id="additionalDesignList" class="space-y-3"></div>
+        </div>
       </section>
 
       <!-- STEP 2: Actual Card Dimensions -->
@@ -262,10 +272,8 @@
   <script>
     // State Object
     const state = {
-      image: null,
-      imageWidthPx: 0,
-      imageHeightPx: 0,
-      fileName: '',
+      designs: [null, null],
+      useDifferentDesigns: false,
       unit: 'cm', // cm, mm, in
       cardWidth: 9.0,
       cardHeight: 14.0,
@@ -289,14 +297,23 @@
 
     // DOM Elements
     const elements = {
-      imageInput: document.getElementById('imageInput'),
-      dropZone: document.getElementById('dropZone'),
-      uploadPrompt: document.getElementById('uploadPrompt'),
-      uploadSuccess: document.getElementById('uploadSuccess'),
-      imagePreviewThumb: document.getElementById('imagePreviewThumb'),
-      imageFileName: document.getElementById('imageFileName'),
-      imageDimensionsInfo: document.getElementById('imageDimensionsInfo'),
-      btnRemoveImage: document.getElementById('btnRemoveImage'),
+      designUploaders: [{
+        imageInput: document.getElementById('imageInput'),
+        dropZone: document.getElementById('dropZone'),
+        uploadPrompt: document.getElementById('uploadPrompt'),
+        uploadSuccess: document.getElementById('uploadSuccess'),
+        imagePreviewThumb: document.getElementById('imagePreviewThumb'),
+        imageFileName: document.getElementById('imageFileName'),
+        imageDimensionsInfo: document.getElementById('imageDimensionsInfo'),
+        btnRemoveImage: document.getElementById('btnRemoveImage'),
+        error: document.getElementById('uploadError'),
+        container: null
+      }],
+      differentDesignsControl: document.getElementById('differentDesignsControl'),
+      differentDesigns: document.getElementById('differentDesigns'),
+      differentDesignsLabel: document.getElementById('differentDesignsLabel'),
+      additionalDesignUploads: document.getElementById('additionalDesignUploads'),
+      additionalDesignList: document.getElementById('additionalDesignList'),
       
       cardWidth: document.getElementById('cardWidth'),
       cardHeight: document.getElementById('cardHeight'),
@@ -339,69 +356,169 @@
     }
 
     function setupFileUpload() {
-      elements.dropZone.addEventListener('click', (e) => {
-        if (e.target.closest('#btnRemoveImage')) return;
-        elements.imageInput.click();
+      setupUploaderEvents(elements.designUploaders[0], 0);
+    }
+
+    function setupUploaderEvents(uploader, index) {
+      uploader.dropZone.addEventListener('click', (e) => {
+        if (e.target.closest('button')) return;
+        uploader.imageInput.click();
       });
 
-      elements.imageInput.addEventListener('change', handleFileSelect);
+      uploader.imageInput.addEventListener('change', () => {
+        handleFileSelect(index, uploader.imageInput.files[0]);
+      });
 
       ['dragenter', 'dragover'].forEach(eventName => {
-        elements.dropZone.addEventListener(eventName, (e) => {
+        uploader.dropZone.addEventListener(eventName, (e) => {
           e.preventDefault();
-          elements.dropZone.classList.add('border-sky-500', 'bg-slate-800');
+          uploader.dropZone.classList.add('border-sky-500', 'bg-slate-800');
         });
       });
 
       ['dragleave', 'drop'].forEach(eventName => {
-        elements.dropZone.addEventListener(eventName, (e) => {
+        uploader.dropZone.addEventListener(eventName, (e) => {
           e.preventDefault();
-          elements.dropZone.classList.remove('border-sky-500', 'bg-slate-800');
+          uploader.dropZone.classList.remove('border-sky-500', 'bg-slate-800');
         });
       });
 
-      elements.dropZone.addEventListener('drop', (e) => {
-        const dt = e.dataTransfer;
-        const files = dt.files;
-        if (files.length > 0) {
-          elements.imageInput.files = files;
-          handleFileSelect();
-        }
+      uploader.dropZone.addEventListener('drop', (e) => {
+        const files = e.dataTransfer.files;
+        if (files.length > 0) handleFileSelect(index, files[0]);
       });
 
-      elements.btnRemoveImage.addEventListener('click', (e) => {
+      uploader.btnRemoveImage.addEventListener('click', (e) => {
         e.stopPropagation();
-        state.image = null;
-        state.fileName = '';
-        elements.imageInput.value = '';
-        elements.uploadPrompt.classList.remove('hidden');
-        elements.uploadSuccess.classList.add('hidden');
+        state.designs[index] = null;
+        uploader.imageInput.value = '';
+        renderUploader(index);
         renderPreview();
       });
     }
 
-    function handleFileSelect() {
-      const file = elements.imageInput.files[0];
+    function createUploader(index) {
+      const container = document.createElement('div');
+      container.className = 'space-y-1';
+      container.innerHTML = `
+        <p class="text-xs font-medium text-slate-300 mb-2">設計 ${index + 1} (Design ${index + 1})</p>
+        <div class="border-2 border-dashed border-slate-600 hover:border-sky-500 bg-slate-800/50 hover:bg-slate-800 rounded-lg p-3 text-center cursor-pointer transition-all group">
+          <input type="file" accept="image/*" class="hidden">
+          <div class="upload-prompt flex flex-col items-center gap-2">
+            <i class="fa-solid fa-image text-2xl text-slate-400 group-hover:text-sky-400 transition-colors"></i>
+            <p class="text-xs font-medium text-slate-200">點擊或拖放設計 ${index + 1} (Click or drag Design ${index + 1})</p>
+          </div>
+          <div class="upload-success hidden flex items-center justify-between gap-3 text-left">
+            <img class="w-12 h-12 object-cover rounded border border-slate-600" alt="設計 ${index + 1} 縮圖">
+            <div class="flex-1 min-w-0">
+              <p class="image-file-name text-xs font-medium text-slate-200 truncate"></p>
+              <p class="image-dimensions-info text-[11px] text-slate-400"></p>
+            </div>
+            <button class="remove-image text-slate-400 hover:text-red-400 p-1.5 transition-colors" title="移除設計 ${index + 1}">
+              <i class="fa-solid fa-trash-can"></i>
+            </button>
+          </div>
+        </div>
+        <p class="upload-error hidden text-xs text-red-400" role="alert"></p>
+      `;
+
+      const dropZone = container.querySelector('div.border-2');
+      const uploader = {
+        imageInput: container.querySelector('input[type="file"]'),
+        dropZone,
+        uploadPrompt: container.querySelector('.upload-prompt'),
+        uploadSuccess: container.querySelector('.upload-success'),
+        imagePreviewThumb: container.querySelector('img'),
+        imageFileName: container.querySelector('.image-file-name'),
+        imageDimensionsInfo: container.querySelector('.image-dimensions-info'),
+        btnRemoveImage: container.querySelector('.remove-image'),
+        error: container.querySelector('.upload-error'),
+        container
+      };
+
+      setupUploaderEvents(uploader, index);
+      return uploader;
+    }
+
+    function syncDesignUploaders(count) {
+      while (elements.designUploaders.length < count) {
+        const index = elements.designUploaders.length;
+        const uploader = createUploader(index);
+        elements.designUploaders.push(uploader);
+        elements.additionalDesignList.appendChild(uploader.container);
+        renderUploader(index);
+      }
+
+      while (elements.designUploaders.length > count) {
+        const uploader = elements.designUploaders.pop();
+        if (uploader.container) uploader.container.remove();
+      }
+    }
+
+    function renderUploader(index) {
+      const uploader = elements.designUploaders[index];
+      const design = state.designs[index];
+      const hasDesign = Boolean(design);
+
+      uploader.uploadPrompt.classList.toggle('hidden', hasDesign);
+      uploader.uploadSuccess.classList.toggle('hidden', !hasDesign);
+      if (uploader.error) uploader.error.classList.add('hidden');
+      if (!hasDesign) {
+        uploader.imagePreviewThumb.src = '';
+        return;
+      }
+
+      uploader.imagePreviewThumb.src = design.image.src;
+      uploader.imageFileName.textContent = design.fileName;
+      uploader.imageDimensionsInfo.textContent = `${design.width} x ${design.height} px`;
+    }
+
+    function handleFileSelect(index, file) {
       if (!file) return;
 
       const reader = new FileReader();
-      reader.onload = function(e) {
+      const uploader = elements.designUploaders[index];
+      uploader.error.classList.add('hidden');
+      reader.onerror = () => {
+        uploader.error.textContent = '無法讀取圖片，請重試。';
+        uploader.error.classList.remove('hidden');
+      };
+      reader.onload = function() {
+        if (typeof reader.result !== 'string') {
+          uploader.error.textContent = '無法讀取圖片，請重試。';
+          uploader.error.classList.remove('hidden');
+          return;
+        }
+
         const img = new Image();
+        img.onerror = () => {
+          uploader.error.textContent = '無法載入圖片，請選擇有效的圖片檔案。';
+          uploader.error.classList.remove('hidden');
+        };
         img.onload = function() {
-          state.image = img;
-          state.imageWidthPx = img.width;
-          state.imageHeightPx = img.height;
-          state.fileName = file.name;
-
-          elements.imagePreviewThumb.src = e.target.result;
-          elements.imageFileName.textContent = file.name;
-          elements.imageDimensionsInfo.textContent = `${img.width} x ${img.height} px`;
-          elements.uploadPrompt.classList.add('hidden');
-          elements.uploadSuccess.classList.remove('hidden');
-
+          const canvas = document.createElement('canvas');
+          canvas.width = img.width;
+          canvas.height = img.height;
+          let pdfImage;
+          try {
+            canvas.getContext('2d').drawImage(img, 0, 0);
+            pdfImage = canvas.toDataURL('image/png');
+          } catch (error) {
+            uploader.error.textContent = '無法處理此圖片，請另存為 PNG 或 JPG 後重試。';
+            uploader.error.classList.remove('hidden');
+            return;
+          }
+          state.designs[index] = {
+            image: img,
+            pdfImage,
+            fileName: file.name,
+            width: img.width,
+            height: img.height
+          };
+          if (elements.designUploaders[index] === uploader) renderUploader(index);
           renderPreview();
         };
-        img.src = e.target.result;
+        img.src = reader.result;
       };
       reader.readAsDataURL(file);
     }
@@ -457,7 +574,7 @@
         elements.cardWidth, elements.cardHeight, elements.layoutStrategy,
         elements.gridCols, elements.gridRows, elements.pageMargin,
         elements.cardSpacing, elements.paperSize, elements.paperOrientation,
-        elements.showCropMarks, elements.showOutline
+        elements.showCropMarks, elements.showOutline, elements.differentDesigns
       ];
 
       inputs.forEach(input => {
@@ -480,11 +597,26 @@
       state.paperOrientation = elements.paperOrientation.value;
       state.showCropMarks = elements.showCropMarks.checked;
       state.showOutline = elements.showOutline.checked;
+      state.useDifferentDesigns = elements.differentDesigns.checked;
 
       if (state.layoutStrategy === 'customGrid') {
         elements.customGridRowCol.classList.remove('hidden');
       } else {
         elements.customGridRowCol.classList.add('hidden');
+      }
+
+      const layout = calculateLayoutPositions();
+      const hasMultipleCards = layout.positions.length > 1;
+      elements.differentDesignsControl.classList.toggle('hidden', !hasMultipleCards);
+      elements.differentDesignsLabel.textContent =
+        `使用不同設計 (Upload a different design for each of the ${layout.positions.length} cards)`;
+      if (!hasMultipleCards) {
+        elements.differentDesigns.checked = false;
+        state.useDifferentDesigns = false;
+      }
+      elements.additionalDesignUploads.classList.toggle('hidden', !hasMultipleCards || !state.useDifferentDesigns);
+      if (hasMultipleCards && state.useDifferentDesigns) {
+        syncDesignUploaders(layout.positions.length);
       }
 
       renderPreview();
@@ -614,9 +746,12 @@
       layout.positions.forEach((pos, idx) => {
         const xPx = pos.x * scale;
         const yPx = pos.y * scale;
+        const design = state.useDifferentDesigns
+          ? state.designs[idx]
+          : state.designs[0];
 
-        if (state.image) {
-          ctx.drawImage(state.image, xPx, yPx, cardWPx, cardHPx);
+        if (design) {
+          ctx.drawImage(design.image, xPx, yPx, cardWPx, cardHPx);
         } else {
           ctx.fillStyle = '#f8fafc';
           ctx.fillRect(xPx, yPx, cardWPx, cardHPx);
@@ -629,7 +764,10 @@
           ctx.font = `600 ${Math.max(10, 12 * (scale/2))}px Inter, sans-serif`;
           ctx.textAlign = 'center';
           ctx.textBaseline = 'middle';
-          ctx.fillText(`卡片 #${idx + 1}`, xPx + cardWPx / 2, yPx + cardHPx / 2 - 8);
+          const placeholder = state.useDifferentDesigns
+            ? `請上傳設計 ${idx + 1}`
+            : `卡片 #${idx + 1}`;
+          ctx.fillText(placeholder, xPx + cardWPx / 2, yPx + cardHPx / 2 - 8);
           
           ctx.font = `${Math.max(8, 10 * (scale/2))}px Inter, sans-serif`;
           ctx.fillText(`${state.cardWidth} x ${state.cardHeight} ${state.unit}`, xPx + cardWPx / 2, yPx + cardHPx / 2 + 10);
@@ -678,7 +816,6 @@
     function exportToPDF() {
       const { jsPDF } = window.jspdf;
       const layout = calculateLayoutPositions();
-      const paperMm = layout.paperMm;
 
       const pdf = new jsPDF({
         orientation: state.paperOrientation,
@@ -689,9 +826,13 @@
       const cardWMm = layout.cardWMm;
       const cardHMm = layout.cardHMm;
 
-      layout.positions.forEach((pos) => {
-        if (state.image) {
-          pdf.addImage(state.image, 'JPEG', pos.x, pos.y, cardWMm, cardHMm);
+      layout.positions.forEach((pos, idx) => {
+        const design = state.useDifferentDesigns
+          ? state.designs[idx]
+          : state.designs[0];
+
+        if (design) {
+          pdf.addImage(design.pdfImage, 'PNG', pos.x, pos.y, cardWMm, cardHMm);
         } else {
           pdf.setDrawColor(180, 180, 180);
           pdf.setFillColor(245, 245, 245);
@@ -699,7 +840,10 @@
 
           pdf.setTextColor(120, 120, 120);
           pdf.setFontSize(10);
-          pdf.text(`Card (${state.cardWidth} x ${state.cardHeight} ${state.unit})`, pos.x + cardWMm / 2, pos.y + cardHMm / 2, { align: 'center' });
+          const placeholder = state.useDifferentDesigns
+            ? `Upload design ${idx + 1}`
+            : `Card (${state.cardWidth} x ${state.cardHeight} ${state.unit})`;
+          pdf.text(placeholder, pos.x + cardWMm / 2, pos.y + cardHMm / 2, { align: 'center' });
         }
 
         if (state.showOutline) {
@@ -735,7 +879,6 @@
         }
       });
 
-      const cleanName = state.fileName ? state.fileName.replace(/\.[^/.]+$/, "") : "cards";
       pdf.save(`A4_Print_${state.cardWidth}x${state.cardHeight}${state.unit}_100pct_actual_size.pdf`);
     }
 
